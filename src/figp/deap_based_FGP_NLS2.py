@@ -9,6 +9,7 @@ import time
 import warnings
 import copy
 import json
+import math
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -125,54 +126,6 @@ def C_only_filter(individual, constonly_filter):
     else:
         return True, '=>>C-none'
 
-def optimize_equations(ind, X, Xnum, compiler):
-    # compiler est.toolbox_.compile
-    func = compiler(ind)
-    x0 = X.iloc[Xnum].values
-
-    def _func_min(x0):
-        return func(*x0)
-
-    def _func_max(x0):
-        return -func(*x0)
-
-    bounds = [(mn, mx) for mn, mx in zip(X.min(), X.max())]
-    result_min = minimize(_func_min, x0, method="L-BFGS-B", bounds=bounds)
-    result_max = minimize(_func_max, x0, method="L-BFGS-B", bounds=bounds)
-    return result_min.fun, -result_max.fun
-
-def D_filter2(
-    individual, 
-    x_train, 
-    y_domain, 
-    equal, 
-    domain_filter,
-    compiler
-    ):
-
-    if domain_filter:
-        y_domain_min, y_domain_max = min(y_domain), max(y_domain)
-        minmax_pool = []
-        n_samples = x_train.shape[0]
-        x0_index_list = random.sample(range(n_samples), k=5)
-        for Xnum in x0_index_list:
-            minmax_pool.extend(
-                optimize_equations(
-                    individual, 
-                    x_train, 
-                    Xnum, 
-                    compiler
-                    ))
-        y_min = min(minmax_pool)
-        y_max = max(minmax_pool)
-        # print(individual, f' {y_min} {y_max}')
-        if ((y_domain_min <= y_min) & (y_max <= y_domain_max)):
-            return True, f'=>>D2-pass{(y_min, y_max)}-n{len(set(minmax_pool))}'
-        return False, f'=>>D2-error{(y_min, y_max)}-n{len(set(minmax_pool))}'
-
-    else:
-        return True, '=>>D2-none'
-    
 
 def FVD_filter(
     individual, 
@@ -187,10 +140,7 @@ def FVD_filter(
     x_domain=None, 
     y_domain=None, 
     y_pred=None, 
-    equal=(True, True),
-    x_train=None,
-    domain_filter=False, 
-    compiler=None    
+    equal=(True, True)
     ):
 
     state = ''
@@ -209,12 +159,7 @@ def FVD_filter(
     state += _state
     if _bool == False:
         return _bool, state
-
-    _bool, _state = D_filter2(individual, x_train, y_domain, equal, domain_filter, compiler)
-    state += _state
-    if _bool == False:
-        return _bool, state
-
+    
     return True, state
 
 
@@ -264,7 +209,6 @@ class Symbolic_Reg(BaseEstimator, RegressorMixin):
                  variable_filter = True, 
                  xydomain_filter = True,
                  constonly_filter= True,
-                 domain_filter   = False,
                  x_domain        = None,
                  y_domain        = None,
                  domain_equal    = (True, True),
@@ -312,7 +256,6 @@ class Symbolic_Reg(BaseEstimator, RegressorMixin):
         self.variable_filter = variable_filter
         self.xydomain_filter = xydomain_filter
         self.constonly_filter= constonly_filter
-        self.domain_filter   = domain_filter
         self.x_domain = x_domain
         self.y_domain = y_domain
         self.domain_equal = domain_equal
@@ -499,7 +442,59 @@ class Symbolic_Reg(BaseEstimator, RegressorMixin):
             y_pred = y_pred.item()
             y_pred = pd.Series(np.full(x.shape[0], float(y_pred)))
         return y_pred
+
+
+    def _AIC(self, y, y_hat, _k):
+        if np.isscalar(y_hat):         # Avoid scalar errors.
+            y_hat = np.full(x.shape[0], float(y_hat))
+        elif len(y_hat.shape) == 0:    # Avoid errors due to singleton arrays.
+            y_hat = y_hat.item()
+            y_hat = np.full(x.shape[0], float(y_hat))
+        elif type(y_hat) is pd.Series: # Set it to np.ndarray
+            y_hat = y_hat.values
+
+        y = y.values.reshape(len(y_hat))
+    
+        _resid = y-y_hat
+        _l = sum(i*i for i in _resid)
         
+        if _l == float('inf') or math.isnan(_l):
+            raise "AIC error"
+            
+        #if 0 < _k:
+        #    print(_l, _k)
+        return (-2*math.log(_l) + 2*_k)
+
+
+    def _BIC(self, y, y_hat, _k):
+        if np.isscalar(y_hat):         # Avoid scalar errors.
+            y_hat = np.full(x.shape[0], float(y_hat))
+        elif len(y_hat.shape) == 0:    # Avoid errors due to singleton arrays.
+            y_hat = y_hat.item()
+            y_hat = np.full(x.shape[0], float(y_hat))
+        elif type(y_hat) is pd.Series: # Set it to np.ndarray
+            y_hat = y_hat.values
+
+        y = y.values.reshape(len(y_hat))
+    
+        _resid = y-y_hat
+        _l = sum(i*i for i in _resid)
+
+        if _l == float('inf') or math.isnan(_l):
+            raise "BIC error"
+        
+        #if 0 < _k:
+        #    print(_l, _k, len(y))
+        return (-2*math.log(_l) + _k*math.log(len(y)))
+
+
+    def _cAIC(self, y, y_hat, _k):
+        _aic = self._AIC(y, y_hat, _k)
+        #print(_aic, type(_aic))
+        _n = len(y_hat)
+        return _aic + (2*_k*(_k+1)) / (_n-_k-1)
+    
+    
     def _evalSymbReg(self, individual, x, y_true):
         individual.state = ''
 
@@ -543,10 +538,7 @@ class Symbolic_Reg(BaseEstimator, RegressorMixin):
                                     x_domain=None, 
                                     y_domain=None, 
                                     y_pred=None, 
-                                    equal=self.domain_equal,
-                                    x_train=None,
-                                    domain_filter=False, 
-                                    compiler=None                                    
+                                    equal=self.domain_equal, 
                                     )
         if filter_results1[0]:
             pass
@@ -606,10 +598,7 @@ class Symbolic_Reg(BaseEstimator, RegressorMixin):
                                     x_domain=self.x_domain, 
                                     y_domain=self.y_domain, 
                                     y_pred=self._pred(self.x_domain, individual), 
-                                    equal=self.domain_equal,
-                                    x_train=x,
-                                    domain_filter= self.domain_filter, 
-                                    compiler=self.toolbox_.compile
+                                    equal=self.domain_equal, 
                                     )
         if filter_results2[0]:
             pass
@@ -627,11 +616,19 @@ class Symbolic_Reg(BaseEstimator, RegressorMixin):
                 error = mean_squared_error(y_true, y_pred, squared=False)
             elif self.metric == 'mse':
                 error = mean_squared_error(y_true, y_pred, squared=True)
+            elif self.metric == 'aic':
+                error = self._AIC(y_true, y_pred, sum(_is_const))
+            elif self.metric == 'bic':
+                error = self._BIC(y_true, y_pred, sum(_is_const))
+            elif self.metric == 'caic':
+                error = self._cAIC(y_true, y_pred, sum(_is_const))
             else:
                 error = mean_absolute_error(y_true, y_pred)
-        except:
+        except Exception as e:
             individual.state += '=opt-error'
             error = np.inf
+            #print(e)
+        
         
         error_noise = None
         if self.stabilize < 1:
@@ -653,6 +650,12 @@ class Symbolic_Reg(BaseEstimator, RegressorMixin):
                         error_noise = mean_squared_error(y_pred, y_pred_noise, squared=False)
                     elif self.metric == 'mse':
                         error_noise = mean_squared_error(y_pred, y_pred_noise, squared=True)
+                    elif self.metric == 'aic':
+                        error_noise = self._AIC(y_true, y_pred, sum(_is_const))
+                    elif self.metric == 'bic':
+                        error_noise = self._BIC(y_true, y_pred, sum(_is_const))
+                    elif self.metric == 'caic':
+                        error_noise = self._cAIC(y_true, y_pred, sum(_is_const))
                     else:
                         error_noise = mean_absolute_error(y_pred, y_pred_noise)
                 except:
@@ -678,6 +681,12 @@ class Symbolic_Reg(BaseEstimator, RegressorMixin):
                         error_noise = mean_squared_error(pd.concat([y_pred,y_pred]), y_pred_noise, squared=False)
                     elif self.metric == 'mse':
                         error_noise = mean_squared_error(pd.concat([y_pred,y_pred]), y_pred_noise, squared=True)
+                    elif self.metric == 'aic':
+                        error_noise = self._AIC(y_true, y_pred, sum(_is_const))
+                    elif self.metric == 'bic':
+                        error_noise = self._BIC(y_true, y_pred, sum(_is_const))
+                    elif self.metric == 'caic':
+                        error_noise = self._cAIC(y_true, y_pred, sum(_is_const))
                     else:
                         error_noise = mean_absolute_error(pd.concat([y_pred,y_pred]), y_pred_noise)
                 except:
@@ -726,6 +735,12 @@ class Symbolic_Reg(BaseEstimator, RegressorMixin):
                     error_noise = mean_squared_error(pd.concat([y_pred,y_pred]), pd.concat([y_pred_noise_p, y_pred_noise_m]), squared=False)
                 elif self.metric == 'mse':
                     error_noise = mean_squared_error(pd.concat([y_pred,y_pred]), pd.concat([y_pred_noise_p, y_pred_noise_m]), squared=True)
+                elif self.metric == 'aic':
+                    error_noise = self._AIC(y_true, y_pred, sum(_is_const))
+                elif self.metric == 'bic':
+                    error_noise = self._BIC(y_true, y_pred, sum(_is_const))
+                elif self.metric == 'caic':
+                    error_noise = self._cAIC(y_true, y_pred, sum(_is_const))
                 else:
                     error_noise = mean_absolute_error(pd.concat([y_pred,y_pred]), pd.concat([y_pred_noise_p, y_pred_noise_m]))
             except:

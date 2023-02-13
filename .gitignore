@@ -163,3 +163,7 @@ cython_debug/
 **/result*/
 **.DS_Store
 
+# scripts results
+scripts/*/
+notebooks/data/
+scripts/res*

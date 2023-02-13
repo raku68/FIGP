@@ -1,0 +1,23 @@
+*directory         *filter          *stabilize (lmd1,lmd2)
+RUN_230203_FV      FV               None
+
+RUN_230203_FV10_1  FV               X(0,.1)
+RUN_230203_FV1_001 FV               X(1,.1)
+RUN_230203_FV1_1   FV               X(1,.1)
+RUN_230203_FV1_5   FV               X(1,.5)
+RUN_230203_FV1_01  FV               X(1,.01)
+RUN_230203_FV11_1  FV               X(.1,.1)
+
+RUN_230203_FV20_1  FV               C(0,.1)
+RUN_230203_FV21_1  FV               C(.1,.1)
+RUN_230203_FV2_1   FV               C(1,.1)
+RUN_230203_FV2_01  FV               C(1,.01)
+RUN_230203_FV2_001 FV               C(1,.001)
+
+RUN_230203_FVD     FVD              None
+RUN_230203_FVD1_1  FVD              X(1,.1)
+RUN_230203_FVD2_1  FVD              C(1,.1)
+
+RUN_230203_N       None             None
+RUN_230203_N1_1    none             X(1,.1)
+RUN_230203_N2_1    none             C(1,.1)
