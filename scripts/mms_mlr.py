@@ -31,7 +31,7 @@ print(config.sections())
 
 file       = config["MLR"]["INPUT_FILE"]
 result_dir = config["MLR"]["RESULT_DIR"]
-njobs      = int(config["MLR"]["NJOBS"])
+njobs      = int(config["MLR"]["NJOBS"]) if "NJOBS" in config["MLR"].keys() else 1
 nfeat      = config["MLR"]["NFEAT"] if "NFEAT" in config["MLR"].keys() else "7"
 mseparate  = config["MLR"]["MSEPARATE"] if "MSEPARATE" in config["MLR"].keys() else "SIMPLE"
 rtrain     = float(config["MLR"]["RTRAIN"]) if "RTRAIN" in config["MLR"].keys() else 0.8

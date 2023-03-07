@@ -1,4 +1,8 @@
 *directory         *filter          *stabilize (lmd1,lmd2)
+
+230307_*
+
+---- OLD ----
 RUN_230203_FV      FV               None
 
 RUN_230203_FV10_1  FV               X(0,.1)
