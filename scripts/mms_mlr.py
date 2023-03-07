@@ -28,7 +28,7 @@ print(config.sections())
 
 file       = config["MLR"]["INPUT_FILE"]
 result_dir = config["MLR"]["RESULT_DIR"]
-njobs      = config["MLR"]["NJOBS"]
+njobs      = int(config["MLR"]["NJOBS"])
 
 print("FILE:", file)
 print("OUTDIR:", result_dir)

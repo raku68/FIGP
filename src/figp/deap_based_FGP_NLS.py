@@ -136,14 +136,15 @@ def optimize_equations(ind, X, Xnum, compiler):
     def _func_max(x0):
         return -func(*x0)
 
-    bounds = [(mn, mx) for mn, mx in zip(X.min(), X.max())]
+    #bounds = [(mn, mx) for mn, mx in zip(X.min(), X.max())]
+    bounds = [(mn - (mx - mn) *0.01, mx + (mx - mn) *0.01) for mn, mx in zip(X.min(), X.max())]      
     result_min = minimize(_func_min, x0, method="L-BFGS-B", bounds=bounds)
     result_max = minimize(_func_max, x0, method="L-BFGS-B", bounds=bounds)
     return result_min.fun, -result_max.fun
 
 def D_filter2(
     individual, 
-    x_train, 
+    x_domain, 
     y_domain, 
     equal, 
     domain_filter,
@@ -153,13 +154,13 @@ def D_filter2(
     if domain_filter:
         y_domain_min, y_domain_max = min(y_domain), max(y_domain)
         minmax_pool = []
-        n_samples = x_train.shape[0]
+        n_samples = x_domain.shape[0]
         x0_index_list = random.sample(range(n_samples), k=5)
         for Xnum in x0_index_list:
             minmax_pool.extend(
                 optimize_equations(
                     individual, 
-                    x_train, 
+                    x_domain, 
                     Xnum, 
                     compiler
                     ))
@@ -188,7 +189,7 @@ def FVD_filter(
     y_domain=None, 
     y_pred=None, 
     equal=(True, True),
-    x_train=None,
+    # x_train=None,
     domain_filter=False, 
     compiler=None    
     ):
@@ -210,7 +211,7 @@ def FVD_filter(
     if _bool == False:
         return _bool, state
 
-    _bool, _state = D_filter2(individual, x_train, y_domain, equal, domain_filter, compiler)
+    _bool, _state = D_filter2(individual, x_domain, y_domain, equal, domain_filter, compiler)
     state += _state
     if _bool == False:
         return _bool, state
@@ -273,7 +274,8 @@ class Symbolic_Reg(BaseEstimator, RegressorMixin):
                  s_gnoise        = False,
                  s_lmd1          = 1.0,
                  s_lmd2          = 0.5,
-                 s_clmd2         = 0.1
+                 s_clmd1         = 1.0,
+                 s_clmd2         = 0.1,
                  ):
         """[summary]
 
@@ -339,6 +341,7 @@ class Symbolic_Reg(BaseEstimator, RegressorMixin):
         self.s_gnoise = s_gnoise
         self.s_lmd1 = s_lmd1
         self.s_lmd2 = s_lmd2
+        self.s_clmd1 = s_clmd1
         self.s_clmd2 = s_clmd2
 
 
@@ -544,7 +547,7 @@ class Symbolic_Reg(BaseEstimator, RegressorMixin):
                                     y_domain=None, 
                                     y_pred=None, 
                                     equal=self.domain_equal,
-                                    x_train=None,
+                                    # x_train=None,
                                     domain_filter=False, 
                                     compiler=None                                    
                                     )
@@ -607,7 +610,7 @@ class Symbolic_Reg(BaseEstimator, RegressorMixin):
                                     y_domain=self.y_domain, 
                                     y_pred=self._pred(self.x_domain, individual), 
                                     equal=self.domain_equal,
-                                    x_train=x,
+                                    # x_train=x,
                                     domain_filter= self.domain_filter, 
                                     compiler=self.toolbox_.compile
                                     )
@@ -633,12 +636,12 @@ class Symbolic_Reg(BaseEstimator, RegressorMixin):
             individual.state += '=opt-error'
             error = np.inf
         
-        error_noise = None
-        if self.stabilize < 1:
-            pass
+        """CHECK STABILITY
+        """
 
-        elif 1 == self.stabilize:
-            """stability for variable noise"""
+        """stability for variable noise"""
+        if 1 == self.stabilize or 3 == self.stabilize:
+            error_noise = None
             
             if self.s_gnoise:
                 # _x_gnoise = self.fit_x_
@@ -683,8 +686,15 @@ class Symbolic_Reg(BaseEstimator, RegressorMixin):
                 except:
                     error_noise = np.inf
 
-        elif 2 == self.stabilize:
-            """stability for regression coefficient"""
+            if error_noise is not None and self.s_lmd1 != 0:
+                error += self.s_lmd1*error_noise
+                # return error + self.stb_lambda*error_noise, error, error_noise
+
+
+        """stability for regression coefficient"""
+        if 2 == self.stabilize or 3 == self.stabilize:
+            error_noise = None
+
             #print(individual)
             _org_coeffs = {}
             for idx,node in enumerate(individual):
@@ -730,16 +740,11 @@ class Symbolic_Reg(BaseEstimator, RegressorMixin):
                     error_noise = mean_absolute_error(pd.concat([y_pred,y_pred]), pd.concat([y_pred_noise_p, y_pred_noise_m]))
             except:
                 error_noise = np.inf
-            
-        else:
-            raise RuntimeError(f"stabilize={self.stabilize} is not implemented. use stabilize=1")
-            # self.s_clmd2 = s_clmd2
 
-        # print("ratio:", error_noise/error)
+            if error_noise is not None and self.s_clmd1 != 0:
+                error += self.s_clmd1*error_noise
+                # return error + self.stb_lambda*error_noise, error, error_noise
 
-        if error_noise is not None and self.s_lmd1 != 0:
-            error += self.s_lmd1*error_noise
-            # return error + self.stb_lambda*error_noise, error, error_noise
             
         return error,
     

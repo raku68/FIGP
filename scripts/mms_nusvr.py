@@ -1,6 +1,6 @@
 import sys
-#import os
-#sys.path.append(os.path.join(os.path.dirname(__file__), "../external/python_library"))
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), "../external/python_library"))
 #print(sys.path)
 import configparser
 import pandas as pd
