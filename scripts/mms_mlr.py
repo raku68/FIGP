@@ -8,6 +8,8 @@ import matplotlib.pyplot as plt
 # from PIL import Image
 from IPython.display import Image
 import sys
+import matplotlib
+matplotlib.use('Agg') 
 
 from sklearn.linear_model import LinearRegression
 
@@ -18,8 +20,9 @@ MMS_COLUMNS = ['chembl-id', 'pot.(log,Ki)', 'pot.(nMol,Ki)', 'aromatic_smiles', 
                'TPSA', 'vdw_vol', 'Weight']
 MMS_COLRENAME = {"arorings": "arings", "a_acc": "acc", "a_don": "don", "logP(o/w)": "logp", "RBC": "rbc",
                  "TPSA": "tpsa", "Weight": "mw", "pot.(log,Ki)":"pot"}
-MMS_FEATLIST = ["arings", "acc", "don", "logp", "rbc", # Rotatable Bond Counts
-                "tpsa", "mw"]
+MMS_FEATLIST = {'10': ["arings", "acc", "don", "a_heavy", "logp", "rbc", "rings", "tpsa", "vdw_vol", "mw"],
+                '7' : ["arings", "acc", "don", "logp", "rbc", "tpsa", "mw"],
+                '4' : ["logp", "rbc", "tpsa", "mw"],}
 MMS_PROPERTY = "pot"
 
 config = configparser.ConfigParser()
@@ -29,10 +32,22 @@ print(config.sections())
 file       = config["MLR"]["INPUT_FILE"]
 result_dir = config["MLR"]["RESULT_DIR"]
 njobs      = int(config["MLR"]["NJOBS"])
+nfeat      = config["MLR"]["NFEAT"] if "NFEAT" in config["MLR"].keys() else "7"
+mseparate  = config["MLR"]["MSEPARATE"] if "MSEPARATE" in config["MLR"].keys() else "SIMPLE"
+rtrain     = float(config["MLR"]["RTRAIN"]) if "RTRAIN" in config["MLR"].keys() else 0.8
+d_rstate   = int(config["MLR"]["D_RSTATE"]) if "D_RSTATE" in config["MLR"].keys() else 0
+
+mms_featlist = MMS_FEATLIST[nfeat]                
+    
 
 print("FILE:", file)
 print("OUTDIR:", result_dir)
 print("NJOBS:", njobs)
+print("NFEAT:", nfeat)
+print("MSEPARETE:", mseparate)
+print("RTRAIN:", rtrain)
+print("D_RSTATE:", d_rstate)
+print("mms_featlist:", mms_featlist)
 
     
 df = pd.read_table(file, index_col=0)
@@ -40,12 +55,12 @@ df = df.rename(columns=MMS_COLRENAME)
 print(df.columns)
 print(file, df["core"].iloc[0])
 ndata = len(df.index)
-ntrain = int(0.8*ndata)
+ntrain = int(rtrain*ndata)
 print(f"ndata: {ndata}, ntrain: {ntrain}")
 
-X = df.loc[:, MMS_FEATLIST]
+X = df.loc[:, mms_featlist]
 y = df.loc[:, MMS_PROPERTY]
-X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=ntrain, random_state=0)
+X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=ntrain, random_state=d_rstate)
 print(X_train.shape, y_train.shape, X_test.shape, y_test.shape)
 ydomain = y.min(), y.max()
 
