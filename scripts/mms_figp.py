@@ -48,6 +48,7 @@ filter     = config["FIGP"]["FILTER"]
 nfeat      = config["FIGP"]["NFEAT"] if "NFEAT" in config["FIGP"].keys() else "7"
 mseparate  = config["FIGP"]["MSEPARATE"] if "MSEPARATE" in config["FIGP"].keys() else "SIMPLE"
 rtrain     = float(config["FIGP"]["RTRAIN"]) if "RTRAIN" in config["FIGP"].keys() else 0.8
+d_rstate   = int(config["FIGP"]["D_RSTATE"]) if "D_RSTATE" in config["FIGP"].keys() else 0
 stabilize  = int(config["FIGP"]["STABILIZE"]) if "STABILIZE" in config["FIGP"].keys() else False
 s_gnoise   = bool(config["FIGP"]["G_NOISE"]) if "G_NOISE" in config["FIGP"].keys() else False
 s_lmd1     = float(config["FIGP"]["S_LMD1"]) if "S_LMD1" in config["FIGP"].keys() else 1.0
@@ -136,7 +137,7 @@ if mseparate == "KMEANS":
     
 else:
     ntrain = int(rtrain*ndata)
-    X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=ntrain, random_state=0)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=ntrain, random_state=d_rstate)
 
     
 print(f"ndata: {ndata}, ntrain: {ntrain}")
@@ -152,7 +153,7 @@ for random_state in range(5):
     print("RANDOM STATE:", random_state)
     print(f"Symblic_Reg(ST={stabilize})")
     est = Symbolic_Reg( population_size=200,
-                        generations=100,
+                        generations=200,
                         tournament_size=5,
                         num_elite_select=1,
                         max_depth=4,
@@ -170,7 +171,7 @@ for random_state in range(5):
                         constonly_filter=constonly_filter,
                         domain_filter   = domain_filter,
                         domain_equal    =(True, True),
-                        results_dir=f"{result_dir}/{random_state}",
+                        results_dir=f"{result_dir}/{d_rstate}_{random_state}",
                         stabilize=stabilize,
                         s_gnoise=s_gnoise,
                         s_lmd1=s_lmd1,
