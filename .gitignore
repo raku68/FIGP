@@ -166,5 +166,6 @@ cython_debug/
 # scripts results
 scripts/*/
 notebooks/data/
+notebooks/*.png
 scripts/res*
 external/
