@@ -70,6 +70,7 @@ if filter == "FVD":
     xydomain_filter = True
     constonly_filter= True
     domain_filter   = False
+    dfilter_aug     = False
     
 elif filter == "FVD2":
     function_filter = True
@@ -77,6 +78,23 @@ elif filter == "FVD2":
     xydomain_filter = False
     constonly_filter= True
     domain_filter   = True
+    dfilter_aug     = False
+    
+elif filter == "FVD3":
+    function_filter = True
+    variable_filter = True 
+    xydomain_filter = True
+    constonly_filter= True
+    domain_filter   = False
+    dfilter_aug     = True
+    
+elif filter == "FVD2&3" or filter == "FVD3&2":
+    function_filter = True
+    variable_filter = True 
+    xydomain_filter = False
+    constonly_filter= True
+    domain_filter   = True
+    dfilter_aug     = True
     
 elif filter == "FV":
     function_filter = True
@@ -84,6 +102,7 @@ elif filter == "FV":
     xydomain_filter = False
     constonly_filter= True
     domain_filter   = False
+    dfilter_aug     = False
 
 else:
     function_filter = False
@@ -91,6 +110,7 @@ else:
     xydomain_filter = False
     constonly_filter= True
     domain_filter   = False
+    dfilter_aug     = False
 
 
 mms_featlist = MMS_FEATLIST[nfeat]                
@@ -101,6 +121,7 @@ print("OUTDIR:", result_dir)
 print("NFEAT:", nfeat)
 print("MSEPARETE:", mseparate)
 print("RTRAIN:", rtrain)
+print("D_RSTATE:", d_rstate)
 print("FILTER:", filter)
 print("STABILIZE:", stabilize)
 print("S_LMD1:", s_lmd1)
@@ -170,6 +191,7 @@ for random_state in range(5):
                         xydomain_filter=xydomain_filter,
                         constonly_filter=constonly_filter,
                         domain_filter   = domain_filter,
+                        dfilter_aug     = dfilter_aug,
                         domain_equal    =(True, True),
                         results_dir=f"{result_dir}/{d_rstate}_{random_state}",
                         stabilize=stabilize,
@@ -195,7 +217,8 @@ res_vals = sorted(res.values(), key=lambda x: (x[0],x[1]))
 print("train all results: score, rmse, r2")
 print([(val[0], val[1], val[2]) for val in res_vals])
 print("TRAIN RESULTS: RMSE, R2")
-print((res_vals[0][0],res_vals[0][1]))
+#print((res_vals[0][0],res_vals[0][1])) # **bug!!** fixed 2023/03/20. Before then, read results from "train all results" .
+print((res_vals[0][1],res_vals[0][2]))
 best_model = res_vals[0][3]
 #best_model.save_all()
 

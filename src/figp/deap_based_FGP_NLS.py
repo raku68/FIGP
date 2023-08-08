@@ -102,6 +102,25 @@ def FV_filter(individual, function_group, function_filter, variable_filter):
         return True, '=>>F-none=>>V-none'
 
 
+from imblearn.over_sampling import SMOTE, SMOTENC
+
+def smote(X, n):
+    """
+    Sampling based on Smote
+    """
+    x  = X.values
+    sm = SMOTE(random_state=0, k_neighbors=5)
+    y  = np.ones(len(x))
+    y2 = np.zeros(n+len(x))
+    x2 = np.zeros((n+len(x),x.shape[1]))
+    xcat = np.vstack([x, x2])
+    ycat = np.concatenate([y,y2])
+    xnew,ynew =  sm.fit_resample(xcat, ycat)
+    xaug = xnew[ynew==1]
+    return xaug
+
+    
+
 def D_filter(x_domain, y_domain, y_pred, equal, xydomain_filter):
     if xydomain_filter:
         if (x_domain is None or y_domain is None or y_pred is None):
@@ -136,10 +155,34 @@ def optimize_equations(ind, X, Xnum, compiler):
     def _func_max(x0):
         return -func(*x0)
 
+    _debug = True
+    def _dump_vars(_bounds, _x0):
+        print("============ DUMP ============")
+        print(_bounds)
+        print(_x0)
+
     #bounds = [(mn, mx) for mn, mx in zip(X.min(), X.max())]
-    bounds = [(mn - (mx - mn) *0.01, mx + (mx - mn) *0.01) for mn, mx in zip(X.min(), X.max())]      
-    result_min = minimize(_func_min, x0, method="L-BFGS-B", bounds=bounds)
-    result_max = minimize(_func_max, x0, method="L-BFGS-B", bounds=bounds)
+    bounds = [(mn - (mx - mn) *0.1, mx + (mx - mn) *0.1) for mn, mx in zip(X.min(), X.max())]
+    try:
+        result_min = minimize(_func_min, x0, method="L-BFGS-B", bounds=bounds)
+    except ValueError as e:
+        print("ValueError (optimize_min)", e)
+        result_min = type("Hoge", (object,), {"fun": -np.inf})
+        if _debug:
+            _dump_vars(bounds, x0)
+            raise ValueError("optimize_min")
+            
+
+    try:
+        result_max = minimize(_func_max, x0, method="L-BFGS-B", bounds=bounds)
+    except ValueError as e:
+        print("ValueError (optimize_max)", e)
+        result_max = type("Hoge", (object,), {"fun": -np.inf})
+        if _debug:
+            _dump_vars(bounds, x0)
+            raise ValueError("optimize_max")
+            
+        
     return result_min.fun, -result_max.fun
 
 def D_filter2(
@@ -266,6 +309,7 @@ class Symbolic_Reg(BaseEstimator, RegressorMixin):
                  xydomain_filter = True,
                  constonly_filter= True,
                  domain_filter   = False,
+                 dfilter_aug     = False,
                  x_domain        = None,
                  y_domain        = None,
                  domain_equal    = (True, True),
@@ -315,6 +359,7 @@ class Symbolic_Reg(BaseEstimator, RegressorMixin):
         self.xydomain_filter = xydomain_filter
         self.constonly_filter= constonly_filter
         self.domain_filter   = domain_filter
+        self.dfilter_aug     = dfilter_aug
         self.x_domain = x_domain
         self.y_domain = y_domain
         self.domain_equal = domain_equal
@@ -601,14 +646,24 @@ class Symbolic_Reg(BaseEstimator, RegressorMixin):
                         _idx += 1
                     self.root = 'C'
 
+        if self.dfilter_aug:
+            _x_domain = pd.DataFrame(smote(self.x_domain, 10000), columns=self.x_domain.columns)
+            _dfilter_aug_log = '=>>X-Aug'
+        else:
+            _x_domain = self.x_domain
+            _dfilter_aug_log = ''
+            
+        #print("smote")
         filter_results2 = FVD_filter(individual, 
                                     function_filter = False, 
                                     variable_filter = False, 
                                     xydomain_filter = self.xydomain_filter,
                                     constonly_filter = False,
-                                    x_domain=self.x_domain, 
+                                    # x_domain=self.x_domain, 
+                                    x_domain=_x_domain,
                                     y_domain=self.y_domain, 
-                                    y_pred=self._pred(self.x_domain, individual), 
+                                    # y_pred=self._pred(self.x_domain, individual), 
+                                    y_pred=self._pred(_x_domain, individual), 
                                     equal=self.domain_equal,
                                     # x_train=x,
                                     domain_filter= self.domain_filter, 
@@ -617,11 +672,11 @@ class Symbolic_Reg(BaseEstimator, RegressorMixin):
         if filter_results2[0]:
             pass
         else:
-            individual.state = filter_results1[1] + filter_results2[1]
+            individual.state = filter_results1[1] + _dfilter_aug_log + filter_results2[1]
             return np.inf,
         
         y_pred = self._pred(self.fit_x_, individual)
-        individual.state = filter_results1[1] + filter_results2[1]
+        individual.state = filter_results1[1] + _dfilter_aug_log + filter_results2[1]
 
         try:
             if self.metric == 'mae':
