@@ -167,5 +167,7 @@ cython_debug/
 scripts/*/
 notebooks/data/
 notebooks/*.png
+notebooks/*.json
+notebooks/*.csv
 scripts/res*
 external/
